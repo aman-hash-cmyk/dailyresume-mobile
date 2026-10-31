@@ -98,7 +98,8 @@ let h=(a.shift()||[]).map(x=>x.trim());
 return a.map(row=>Object.fromEntries(h.map((k,i)=>[k,(row[i]||"").trim()])))
 }
 
-function getDescription(x){return x.description||x.job_description||x.jobDescription||x.description_plain||x.descriptionPlain||x.content||x.job_details||x.details||""}\nfunction render(){
+function getDescription(x){return x.description||x.job_description||x.jobDescription||x.description_plain||x.descriptionPlain||x.content||x.job_details||x.details||""}
+function render(){
 let min=Number($("min").value)||0;
 let list=data.filter(x=>Number(x.match_score)>=min)
 .sort((a,b)=>Number(b.match_score)-Number(a.match_score));
