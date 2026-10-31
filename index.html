@@ -165,7 +165,36 @@ setTimeout(()=>URL.revokeObjectURL(u),1000)
 let applyPayload = "";
 const bookmarklet = "javascript:(function(){var raw=prompt(\"Paste application details copied from Job Shortlist\");if(!raw)return;var d;try{d=JSON.parse(raw)}catch(e){alert(\"Invalid application details\");return}var norm=function(s){return String(s||\"\").replace(/([a-z])([A-Z])/g,\"$1 $2\").toLowerCase().replace(/[_-]+/g,\" \").replace(/\\\\s+/g,\" \").trim()};var fields=[].slice.call(document.querySelectorAll('input:not([type=hidden]):not([type=file]):not([type=submit]):not([type=button]):not([type=checkbox]):not([type=radio]),textarea'));var used={first:false,last:false,full:false,email:false,phone:false,cover:false};var done=[],skipped=[];function textFor(e){var a=[];[\"name\",\"id\",\"placeholder\",\"aria-label\",\"autocomplete\"].forEach(function(k){a.push(e.getAttribute(k)||\"\")});var ls=e.labels?Array.prototype.map.call(e.labels,function(x){return x.innerText||x.textContent}).join(\" \"):\"\";a.push(ls);var lb=e.getAttribute(\"aria-labelledby\");if(lb)lb.split(/\\\\s+/).forEach(function(id){var x=document.getElementById(id);if(x)a.push(x.innerText||x.textContent)});var p=e.parentElement;if(p&&p.tagName===\"LABEL\")a.push(p.innerText||p.textContent);return norm(a.join(\" \"))}function put(e,v){if(!v||e.disabled||e.readOnly)return false;var p=e;while(p&&!Object.prototype.hasOwnProperty.call(p,\"value\"))p=Object.getPrototypeOf(p);var desc=p&&Object.getOwnPropertyDescriptor(p,\"value\");if(desc&&desc.set)desc.set.call(e,v);else e.value=v;e.dispatchEvent(new Event(\"input\",{bubbles:true}));e.dispatchEvent(new Event(\"change\",{bubbles:true}));return true}fields.forEach(function(e){var m=textFor(e),ac=norm(e.getAttribute(\"autocomplete\")),kind=\"\",v=\"\";if(/given name|first name|forename/.test(m)||ac===\"given-name\"){kind=\"first\";v=d.firstName}else if(/family name|last name|surname/.test(m)||ac===\"family-name\"){kind=\"last\";v=d.lastName}else if(/email/.test(m)||ac===\"email\"||e.type===\"email\"){kind=\"email\";v=d.email}else if(/phone|mobile|cellular|telephone|contact number/.test(m)||ac===\"tel\"||e.type===\"tel\"){kind=\"phone\";v=d.phone}else if(/cover letter|additional information|message to (the )?(hiring|recruiting)|why (do you want|are you interested)|application message/.test(m)){kind=\"cover\";v=d.coverLetter}else if(/full name|your name/.test(m)||ac===\"name\"||(/^name$/.test(norm(e.name))&& !used.full)){kind=\"full\";v=d.name}if(kind&&v&&!used[kind]&&put(e,v)){used[kind]=true;done.push(kind)}else if(kind&&v&&used[kind])skipped.push(kind+\" (duplicate field)\")});var missed=[];[\"first\",\"last\",\"email\",\"phone\",\"cover\"].forEach(function(k){if(d[{first:\"firstName\",last:\"lastName\",email:\"email\",phone:\"phone\",cover:\"coverLetter\"}[k]]&&!used[k])missed.push(k)});if(d.name&&!used.full&&!used.first&&!used.last)missed.push(\"name\");var msg=\"Filled: \"+(done.length?done.join(\", \"):\"none\")+\".\\nNot recognised: \"+(missed.length?missed.join(\", \"):\"none\")+\".\\nReview every field. Custom questions and uploads may need manual input. Do not submit until you have checked everything.\";alert(msg)})();";
 $("copyBookmark").onclick = async () => { try { await navigator.clipboard.writeText(bookmarklet); alert("Helper copied. Create a Safari bookmark and paste it into the address field."); } catch(e) { alert("Clipboard access was blocked by Safari."); } };
-$("copyApply").onclick = async () => { if (!applyPayload) return; try { await navigator.clipboard.writeText(applyPayload); $("result").textContent = "Details copied. Open the employer form and tap your Safari helper bookmark."; } catch(e) { $("result").textContent = "Clipboard access was blocked. Try again."; } };
+$("copyApply").onclick = async () => {
+if (!applyPayload) { $("result").textContent = "No application details generated. Tap Prepare application first."; return; }
+try {
+if (navigator.clipboard && window.isSecureContext) {
+await navigator.clipboard.writeText(applyPayload);
+} else {
+throw new Error("Clipboard API unavailable");
+}
+$("result").textContent = "Details copied. Open the employer form and tap your Safari helper bookmark.";
+} catch(e) {
+const box=document.createElement("textarea");
+box.value=applyPayload;
+box.setAttribute("readonly","");
+box.style.position="fixed";
+box.style.top="10px";
+box.style.left="10px";
+box.style.width="90%";
+box.style.height="120px";
+box.style.zIndex="99999";
+document.body.appendChild(box);
+box.focus();
+box.select();
+box.setSelectionRange(0,box.value.length);
+const ok=document.execCommand("copy");
+box.remove();
+$("result").textContent = ok
+? "Details copied. Open the employer form and tap your Safari helper bookmark."
+: "Copy was blocked. Please try again or use the manual copy option.";
+}
+};
 $("prepare").onclick=()=>{
 if(!profile){$("result").textContent="Import your private profile JSON first.";return}
 if(!selected){$("result").textContent="Select a job from the shortlist first.";return}
