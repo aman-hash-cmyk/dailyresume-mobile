@@ -45,22 +45,18 @@ button{background:#205bc5;color:white;border:0;font-weight:650}
 </section>
 
 <section class="card">
-<h2>3. Your details (kept in this browser session)</h2>
-<p class="muted">Enter only what you want included in your drafts. Nothing is uploaded by this page.</p>
-<input id="name" placeholder="Your name">
-<input id="location" placeholder="Your location">
-<textarea id="summary" placeholder="Professional summary"></textarea>
-<textarea id="skills" placeholder="Skills (comma-separated)"></textarea>
-<textarea id="experience" placeholder="Experience and achievements"></textarea>
-<input id="education" placeholder="Education">
+<h2>3. Your saved profile</h2>
+<p class="muted">Import your private profile JSON once. It is stored only in this browser on this device and is not uploaded.</p>
+<input id="profileFile" type="file" accept=".json,application/json">
+<button id="importProfile">Import and save profile</button>
+<p id="profileStatus" class="muted">No profile imported yet.</p>
+<button id="clearProfile" style="background:#667085">Clear saved profile</button>
 </section>
 
 <section class="card">
 <h2>4. Prepare application drafts</h2>
-<input id="company" placeholder="Company">
-<input id="title" placeholder="Job title">
-<input id="url" placeholder="Job URL">
-<textarea id="description" placeholder="Paste job description"></textarea>
+<p class="muted">Company, title, link and job description are filled automatically from the selected CSV job.</p>
+<p id="selectedJob" class="muted">Select a job from section 2 first.</p>
 <button id="prepare">Generate drafts</button>
 <p id="result" class="muted"></p>
 <div id="downloads" hidden>
@@ -74,7 +70,7 @@ button{background:#205bc5;color:white;border:0;font-weight:650}
 </main>
 
 <script>
-let data=[],selected=null,docs={};
+let data=[],selected=null,docs={},profile=null;
 const $=id=>document.getElementById(id);
 
 function csv(t){
@@ -99,6 +95,22 @@ return a.map(row=>Object.fromEntries(h.map((k,i)=>[k,(row[i]||"").trim()])))
 }
 
 function getDescription(x){return x.description||x.job_description||x.jobDescription||x.description_plain||x.descriptionPlain||x.content||x.job_details||x.details||""}
+function loadProfile(){
+try{profile=JSON.parse(localStorage.getItem("dailyresume_profile")||"null")}catch(e){profile=null}
+$("profileStatus").textContent=profile?"Saved profile loaded: "+(profile.name||"Profile")+" · "+(profile.skills||[]).length+" skills":"No profile imported yet.";
+}
+$("importProfile").onclick=async()=>{
+const f=$("profileFile").files[0];
+if(!f){$("profileStatus").textContent="Choose your private profile JSON file first.";return}
+try{
+const p=JSON.parse(await f.text());
+if(!Array.isArray(p.skills)||!Array.isArray(p.experience)||!p.education)throw new Error("Unexpected profile format");
+profile=p;localStorage.setItem("dailyresume_profile",JSON.stringify(p));loadProfile();
+}catch(e){$("profileStatus").textContent="Could not import this profile JSON file."}
+};
+$("clearProfile").onclick=()=>{localStorage.removeItem("dailyresume_profile");profile=null;loadProfile()};
+loadProfile();
+
 function render(){
 let min=Number($("min").value)||0;
 let list=data.filter(x=>Number(x.match_score)>=min)
@@ -115,11 +127,8 @@ $("jobs").innerHTML=list.length?list.map((x,i)=>
 [...$("jobs").querySelectorAll("button[data-i]")].forEach(b=>b.onclick=()=>{
 let x=list[+b.dataset.i];
 selected=x;
-$("company").value=x.company||"";
-$("title").value=x.title||"";
-$("url").value=x.url||"";
-$("description").value=getDescription(x);
-$("result").textContent=$("description").value?"Selected "+(x.title||"job")+" — JD loaded.":"Selected "+(x.title||"job")+", but this CSV row has no job description. Download a fresh report with the description column."
+$("selectedJob").textContent=(x.title||"Role")+" — "+(x.company||"Company")+" · "+(x.location||"");
+$("result").textContent=getDescription(x)?"Selected job and JD loaded.":"This CSV row has no job description. Use a fresh report that includes the description column."
 })
 }
 
@@ -151,49 +160,29 @@ setTimeout(()=>URL.revokeObjectURL(u),1000)
 }
 
 $("prepare").onclick=()=>{
-let name=$("name").value.trim();
-let company=$("company").value.trim();
-let title=$("title").value.trim();
-let desc=$("description").value.trim();
-
-if(!company||!title||!desc){
-$("result").textContent="Enter company, job title and job description.";
-return
-}
-
-let skills=$("skills").value.split(",").map(x=>x.trim()).filter(Boolean);
-let matched=skills.filter(s=>desc.toLowerCase().includes(s.toLowerCase()));
-let summary=$("summary").value;
-let exp=$("experience").value;
-let edu=$("education").value;
-let loc=$("location").value;
-
+if(!profile){$("result").textContent="Import your private profile JSON first.";return}
+if(!selected){$("result").textContent="Select a job from the shortlist first.";return}
+const desc=getDescription(selected).trim();
+if(!desc){$("result").textContent="The selected CSV row has no job description. Generate a fresh daily report containing the description.";return}
+const name=profile.name||"";
+const company=selected.company||"";
+const title=selected.title||"";
+const loc=profile.location||"";
+const skills=profile.skills||[];
+const matched=skills.filter(s=>desc.toLowerCase().includes(s.toLowerCase()));
+const summary=profile.summary||("Finance professional with "+(profile.experience_years||8)+" years of experience across FP&A, corporate planning, management reporting and data analytics.");
 docs.cover="Application: "+title+" — "+company+
-"\n\nDear Hiring Team,\n\nI am interested in the "+title+
-" opportunity at "+company+". "+summary+
-"\n\nMy relevant skills include "+(matched.join(", ")||
-skills.join(", ")||"the skills outlined in my profile")+
-". I would welcome the opportunity to discuss how my experience could contribute to your team."+
-"\n\nKind regards,\n"+(name||"Your name")+"\n"+loc;
-
-docs.resume='<!doctype html><html><head><meta charset="utf-8"><title>Resume draft</title><style>body{font:14px Arial;max-width:800px;margin:30px auto;line-height:1.5}h2{border-bottom:1px solid #aaa}</style></head><body><h1>'+
-safe(name||"Your Name")+'</h1><p>'+safe(loc)+
-'</p><h2>Professional Summary</h2><p>'+safe(summary)+
-'</p><h2>Skills</h2><p>'+safe(skills.join(" · "))+
-'</p><h2>Experience</h2><p>'+safe(exp).replace(/\n/g,"<br>")+
-'</p><h2>Education</h2><p>'+safe(edu)+'</p></body></html>';
-
-docs.check="ROLE: "+title+" — "+company+
-"\nURL: "+$("url").value+
-"\n\nKeywords found in job description:\n"+
-(matched.map(x=>"[ ] "+x).join("\n")||
-"No exact skill matches. Review the job description manually.")+
-"\n\nUse only accurate claims.";
-
+"\n\nDear Hiring Team,\n\nI am writing to express my interest in the "+title+" opportunity at "+company+". "+summary+
+"\n\nMy experience includes "+(matched.join(", ")||"financial planning, reporting and analysis")+
+". Across my roles, I have supported budgeting, forecasting, risks and opportunities, executive reporting, variance analysis and reporting improvements using tools including TM1, Excel and Tableau. I would welcome the opportunity to discuss how my background aligns with your team's needs."+
+"\n\nKind regards,\n"+(name||"Candidate")+"\n"+loc;
+const exp=(profile.experience||[]);
+docs.resume='<!doctype html><html><head><meta charset="utf-8"><title>Resume draft</title><style>body{font:14px Arial;max-width:800px;margin:30px auto;line-height:1.5}h2{border-bottom:1px solid #aaa}</style></head><body><h1>'+safe(name||"Candidate")+'</h1><p>'+safe(loc)+'</p><h2>Professional Summary</h2><p>'+safe(summary)+'</p><h2>Skills</h2><p>'+safe(skills.join(" · "))+'</p><h2>Experience</h2>'+exp.map(e=>'<h3>'+safe(e.role)+' — '+safe(e.employer)+'</h3><p>'+safe(e.period)+'</p><ul>'+(e.evidence||[]).map(v=>'<li>'+safe(v)+'</li>').join("")+'</ul>').join("")+'<h2>Education</h2><p>'+safe(profile.education||"")+'</p></body></html>';
+docs.check="ROLE: "+title+" — "+company+"\nURL: "+(selected.url||"")+
+"\n\nKeywords found in job description:\n"+(matched.map(x=>"[ ] "+x).join("\n")||"No exact skill matches. Review manually.")+"\n\nReview every claim for accuracy.";
 $("result").textContent="Drafts are ready. Review them carefully before use.";
 $("downloads").hidden=false
 };
-
 $("cover").onclick=()=>save("cover-letter.txt",docs.cover);
 $("resume").onclick=()=>save("resume-draft.html",docs.resume,"text/html");
 $("check").onclick=()=>save("keyword-checklist.txt",docs.check);
