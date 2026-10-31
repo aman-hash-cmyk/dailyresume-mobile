@@ -57,8 +57,11 @@ button{background:#205bc5;color:white;border:0;font-weight:650}
 <h2>4. Prepare application drafts</h2>
 <p class="muted">Company, title, link and job description are filled automatically from the selected CSV job.</p>
 <p id="selectedJob" class="muted">Select a job from section 2 first.</p>
-<button id="prepare">Generate drafts</button>
+<button id="prepare">Prepare application</button>
 <p id="result" class="muted"></p>
+<button id="copyApply" style="background:#16734a" disabled>Copy application details</button>
+<p class="muted">After preparing, copy details, open the employer application form, and tap your saved Safari helper bookmark. It fills common text fields only. Review everything and upload files yourself.</p>
+<details><summary>Set up Safari helper once</summary><p class="muted">Copy the helper code, create a Safari bookmark, edit its address to the copied code, and save it. On an employer form, tap the bookmark and paste your application details.</p><button id="copyBookmark" style="background:#667085">Copy Safari helper code</button></details>
 <div id="downloads" hidden>
 <button id="cover">Download cover letter (.txt)</button>
 <button id="resume">Download resume draft (.html)</button>
@@ -159,6 +162,10 @@ a.href=u;a.download=n;a.click();
 setTimeout(()=>URL.revokeObjectURL(u),1000)
 }
 
+let applyPayload = "";
+const bookmarklet = "javascript:(function(){var raw=prompt(\"Paste application details copied from Job Shortlist\");if(!raw)return;var d;try{d=JSON.parse(raw)}catch(e){alert(\"Invalid details\");return}var norm=function(s){return(s||\"\").toLowerCase()};var els=document.querySelectorAll('input:not([type=hidden]):not([type=file]),textarea');var n=0;for(var i=0;i<els.length;i++){var e=els[i];if(e.disabled||e.readOnly)continue;var labels=e.labels?Array.prototype.map.call(e.labels,function(x){return x.innerText}).join(\" \"):\"\";var l=norm([e.name,e.id,e.placeholder,e.getAttribute(\"aria-label\"),labels].join(\" \"));var v=\"\";if(/first.?name|given.?name/.test(l))v=d.firstName;else if(/last.?name|surname|family.?name/.test(l))v=d.lastName;else if(/full.?name|your.?name/.test(l))v=d.name;else if(/email/.test(l))v=d.email;else if(/phone|mobile|telephone/.test(l))v=d.phone;else if(/cover.?letter|message to|additional information/.test(l))v=d.coverLetter;if(v){var desc=Object.getOwnPropertyDescriptor(Object.getPrototypeOf(e),\"value\");if(desc&&desc.set)desc.set.call(e,v);else e.value=v;e.dispatchEvent(new Event(\"input\",{bubbles:true}));e.dispatchEvent(new Event(\"change\",{bubbles:true}));n++}}alert(\"Filled \"+n+\" recognised field(s). Review all answers, upload files if required, and submit yourself.\")})();";
+$("copyBookmark").onclick = async () => { try { await navigator.clipboard.writeText(bookmarklet); alert("Helper copied. Create a Safari bookmark and paste it into the address field."); } catch(e) { alert("Clipboard access was blocked by Safari."); } };
+$("copyApply").onclick = async () => { if (!applyPayload) return; try { await navigator.clipboard.writeText(applyPayload); $("result").textContent = "Details copied. Open the employer form and tap your Safari helper bookmark."; } catch(e) { $("result").textContent = "Clipboard access was blocked. Try again."; } };
 $("prepare").onclick=()=>{
 if(!profile){$("result").textContent="Import your private profile JSON first.";return}
 if(!selected){$("result").textContent="Select a job from the shortlist first.";return}
@@ -181,7 +188,9 @@ const phone=profile.phone||""; const email=profile.email||""; const headline=pro
 docs.resume='<!doctype html><html><head><meta charset="utf-8"><title>Resume draft</title><style>body{font:14px Arial;max-width:800px;margin:30px auto;line-height:1.5;color:#222}h1{margin-bottom:4px}h2{border-bottom:1px solid #aaa;margin-top:22px}header{text-align:center;margin-bottom:20px}header p{margin:4px 0}</style></head><body><header><h1>'+safe(name||"Candidate")+'</h1><p><b>'+safe(headline)+'</b></p><p>'+safe(loc)+(phone?" | "+safe(phone):"")+(email?" | "+safe(email):"")+'</p></header><h2>Professional Summary</h2><p>'+safe(summary)+'</p><h2>Skills</h2><p>'+safe(skills.join(" · "))+'</p><h2>Experience</h2>'+exp.map(e=>'<h3>'+safe(e.role)+' — '+safe(e.employer)+'</h3><p>'+safe(e.period)+'</p><ul>'+(e.evidence||[]).map(v=>'<li>'+safe(v)+'</li>').join("")+'</ul>').join("")+'<h2>Education</h2><p>'+safe(profile.education||"")+'</p></body></html>';
 docs.check="ROLE: "+title+" — "+company+"\nURL: "+(selected.url||"")+
 "\n\nKeywords found in job description:\n"+(matched.map(x=>"[ ] "+x).join("\n")||"No exact skill matches. Review manually.")+"\n\nReview every claim for accuracy.";
-$("result").textContent="Drafts are ready. Review them carefully before use.";
+const nameParts=(name||"").trim().split(/\s+/);applyPayload=JSON.stringify({name:name,firstName:nameParts[0]||"",lastName:nameParts.slice(1).join(" "),email:profile.email||"",phone:profile.phone||"",coverLetter:docs.cover});
+$("copyApply").disabled=false;
+$("result").textContent="Drafts are ready. Copy your application details and review all content.";
 $("downloads").hidden=false
 };
 $("cover").onclick=()=>save("cover-letter.txt",docs.cover);
